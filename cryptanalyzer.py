@@ -24,7 +24,7 @@ class Cryptanalyzer:
         self.history.append(copy.deepcopy(self.mapping))
 
     def compute_frequencies(self):
-        """Возвращает список символов, отсортированных по убыванию частоты""" #
+        """Возвращает список символов, отсортированных по убыванию частоты""" 
         freq = Counter(char for char in self.ciphertext if char != ' ')
         sorted_chars = [item[0] for item in freq.most_common()]
         return sorted_chars
@@ -97,16 +97,20 @@ class Cryptanalyzer:
             print("Все символы уже имеют замены")
             return 0
 
-        letters_to_use = RUSSIAN_FREQ_ORDER[:len(unmapped)]
+        letters_to_use = []
+        for letter in RUSSIAN_FREQ_ORDER:
+            if letter not in self.mapping.values():
+                letters_to_use.append(letter)
+                if len(letters_to_use) == len(unmapped):
+                    break
 
-        self._save_state()
+        self._save_state()       
+        count = len(unmapped)
 
-        count = 0
-        for ch, letter in zip(unmapped, letters_to_use):
-            self.mapping[ch] = letter
-            count += 1
+        for i in range(count):
+            self.mapping[unmapped[i]] = letters_to_use[i]
 
-        print(f"Автоматически заменено {count} символов")
+        print(f"Автоматически заменено {count} символов.")
         return count
 
 # Загрузка шифротекста из файла
