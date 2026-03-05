@@ -1,7 +1,7 @@
 import copy
 from collections import Counter
 
-# Частотный порядок
+# Частотный порядок букв русского языка (по убыванию)
 RUSSIAN_FREQ_ORDER = [
     'о', 'е', 'а', 'и', 'н', 'т', 'с', 'р', 'в', 'л',
     'к', 'м', 'д', 'п', 'у', 'я', 'ы', 'ь', 'г', 'з',
@@ -9,49 +9,47 @@ RUSSIAN_FREQ_ORDER = [
     'ф', 'ъ', 'ё'
 ]
 
-# Русский алфавит
+# Множество допустимых русских букв (строчных)
 RUSSIAN_ALPHABET = set('абвгдеёжзийклмнопрстуфхцчшщъыьэюя')
 
-# Класс для криптоаналитики
 class Cryptanalyzer:
     def __init__(self, ciphertext):
-        self.ciphertext = ciphertext          # исходная строка шифротекста
-        self.mapping = {}                      # текущий словарь замен: символ -> буква
-        self.history = []                       # стек предыдущих состояний mapping
+        self.ciphertext = ciphertext          # исходный шифротекст
+        self.mapping = {}                      # словарь замен: символ -> буква
+        self.history = []                       # стек для отката
 
     def _save_state(self):
-        """Сохраняет текущее состояние mapping в историю""" # ?
+        """Сохраняет текущее состояние mapping в историю"""
         self.history.append(copy.deepcopy(self.mapping))
 
     def compute_frequencies(self):
-        """Возвращает список символов, отсортированных по убыванию частоты""" 
-        freq = Counter(char for char in self.ciphertext if char != ' ')
+        """Возвращает список символов отсортированных по убыванию частоты"""
+        freq = Counter(char for char in self.ciphertext if char.isalpha())
         sorted_chars = [item[0] for item in freq.most_common()]
         return sorted_chars
 
     def group_words_by_length(self):
-        """Возвращает словарь {длина: список слов} для всех слов криптограммы"""
+        """Группирует слова по длине"""
         words = self.ciphertext.split()
         groups = {}
         for word in words:
-            length = len(word)
-            groups.setdefault(length, []).append(word)
+            clean_word = ''.join(ch for ch in word if ch.isalpha())
+            length = len(clean_word)
+            if length > 0:                   
+                groups.setdefault(length, []).append(word)
         return groups
 
     def group_words_by_unknown(self):
-        """
-        Группирует слова по количеству нерасшифрованных символов
-        Возвращает словарь {чиcлo_нeизвecтныx: список слов}
-        """
+        """Группирует слова по количеству нерасшифрованных букв"""
         words = self.ciphertext.split()
         groups = {}
         for word in words:
-            unknown = sum(1 for ch in word if ch not in self.mapping)
+            unknown = sum(1 for ch in word if ch.isalpha() and ch not in self.mapping)
             groups.setdefault(unknown, []).append(word)
         return groups
 
     def current_text(self):
-        """Возвращает строку c текущим состоянием дешифровки"""
+        """Возвращает текущее состояние дешифровки"""
         result = []
         for ch in self.ciphertext:
             if ch == ' ':
@@ -59,7 +57,7 @@ class Cryptanalyzer:
             elif ch in self.mapping:
                 result.append(self.mapping[ch])
             else:
-                result.append(ch)
+                result.append(ch)         
         return ''.join(result)
 
     def substitute(self, symbol, letter):
@@ -80,7 +78,7 @@ class Cryptanalyzer:
         return True
 
     def undo(self):
-        """Откатывает последнее изменение mapping""" # ?
+        """Откатывает последнее изменение"""
         if not self.history:
             print("Нет сохранённых состояний для отката")
             return False
@@ -89,14 +87,18 @@ class Cryptanalyzer:
         return True
 
     def auto_substitute(self):
-        """Автоматическая замена на основе частотного анализа."""
+        """
+        Автоматическая замена на основе частотного анализа
+        Сопоставляет самые частые буквы шифротекста с самыми частыми буквами
+        русского языка, ещё не использованными в заменах
+        """
         cipher_order = self.compute_frequencies()
         unmapped = [ch for ch in cipher_order if ch not in self.mapping]
 
         if not unmapped:
             print("Все символы уже имеют замены")
             return 0
-
+        
         letters_to_use = []
         for letter in RUSSIAN_FREQ_ORDER:
             if letter not in self.mapping.values():
@@ -104,17 +106,19 @@ class Cryptanalyzer:
                 if len(letters_to_use) == len(unmapped):
                     break
 
-        self._save_state()       
-        count = len(unmapped)
-
+        self._save_state()
+        count = min(len(unmapped), len(letters_to_use))
         for i in range(count):
             self.mapping[unmapped[i]] = letters_to_use[i]
 
-        print(f"Автоматически заменено {count} символов.")
+        print(f"Автоматически заменено {count} символов")
+        if count < len(unmapped):
+            print("Предупреждение: не хватило свободных букв")
         return count
 
-# Загрузка шифротекста из файла
+
 def load_ciphertext(filename):
+    """Загружает шифротекст из файла"""
     try:
         with open(filename, 'r', encoding='utf-8') as f:
             return f.read().rstrip('\n')
@@ -122,8 +126,9 @@ def load_ciphertext(filename):
         print(f"Файл {filename} не найден")
         return None
 
-# Вывод меню
+
 def print_help():
+    """Вывод меню"""
     print("\n--- МЕНЮ ---")
     print("1. Показать частоты символов")
     print("2. Показать слова по длине")
@@ -136,20 +141,17 @@ def print_help():
     print("9. Выход")
     print("------------")
 
-# Основная функция
+
 def main():
-    filename = input("Введите имя файла с криптограммой (например, cipher.txt): ").strip()
+    filename = input("Введите имя файла с криптограммой (по умолчанию cipher.txt): ").strip()
     if not filename:
-        print("Ошибка ввода")
-        return
-    
-    # Загрузка файла
-    ciphertext = load_ciphertext(filename)
-    if ciphertext is None:
-        print("Ошибка загрузки файла")
+        filename = "cipher.txt"
         return
 
-    # Инициализация анализатора
+    ciphertext = load_ciphertext(filename)
+    if ciphertext is None:
+        return
+
     analyzer = Cryptanalyzer(ciphertext)
 
     while True:
@@ -159,7 +161,7 @@ def main():
         if choice == '1':
             freq_order = analyzer.compute_frequencies()
             if not freq_order:
-                print("Ошибка. В криптограмме нет букв")
+                print("В криптограмме нет букв")
             else:
                 print("Символы в порядке убывания частоты:")
                 for ch in freq_order:
@@ -168,22 +170,22 @@ def main():
         elif choice == '2':
             groups = analyzer.group_words_by_length()
             if not groups:
-                print("Ошибка. Нет слов")
+                print("Нет слов для анализа")
             else:
                 for length, words in sorted(groups.items()):
                     print(f"\nДлина {length}:")
                     for w in words:
-                        print(f" {w}")
+                        print(f"  {w}")
 
         elif choice == '3':
             groups = analyzer.group_words_by_unknown()
             if not groups:
-                print("Ошибка. Нет слов")
+                print("Нет слов для анализа")
             else:
                 for unknown, words in sorted(groups.items()):
                     print(f"\nНеизвестных букв: {unknown} —")
                     for w in words:
-                        print(f" {w}")
+                        print(f"  {w}")
 
         elif choice == '4':
             print("\nТекущее состояние дешифровки:")
@@ -193,7 +195,7 @@ def main():
             symbol = input("Введите символ криптограммы (заглавная буква): ").strip().upper()
             if not symbol:
                 continue
-            letter = input("Введите предполагаемую русскую букву (строчная буква): ").strip().lower()
+            letter = input("Введите предполагаемую русскую букву (строчную): ").strip().lower()
             analyzer.substitute(symbol, letter)
 
         elif choice == '6':
@@ -216,11 +218,11 @@ def main():
                 print(f"Ошибка записи: {e}")
 
         elif choice == '9':
-            print("Выход из программы.")
+            print("Выход из программы")
             break
 
         else:
-            print("Неверный пункт меню. Попробуйте снова.")
+            print("Неверный пункт меню. Попробуйте снова")
 
 if __name__ == "__main__":
     main()
